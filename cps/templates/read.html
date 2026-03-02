@@ -114,6 +114,11 @@
             <input type="checkbox" id="showPagesCount" name="showPagesCount"/>{{_('Show pages count')}}
           </p>
         </div>
+        <div class="form-group">
+          <p>
+            <input type="checkbox" id="wakeLock" name="wakeLock"/>{{_('Keep screen awake while reading')}}
+          </p>
+        </div>
         <div class="form-group fontSizeWrapper">
           <label>{{ _('Font Size') }}</label>
           <div class="font-size-controls" style="display: flex;align-items: center;gap: 10px;margin-top: 2px;">
@@ -323,6 +328,62 @@
                     if (target) target.style.visibility = val ? "visible" : "hidden";
                 });
             }
+        })();
+
+        // Wake Lock setting
+        (function () {
+            var checkbox = document.getElementById("wakeLock");
+            var key = "calibre.reader.wakeLock";
+            var wakeLockSentinel = null;
+
+            // Disable checkbox if Wake Lock API is not available (HTTP or unsupported browser)
+            if (!("wakeLock" in navigator)) {
+                if (checkbox) {
+                    checkbox.disabled = true;
+                    checkbox.title = "Wake Lock requires a secure context (HTTPS)";
+                }
+                return;
+            }
+
+            var saved = localStorage.getItem(key);
+            var enabled = saved === "true";
+            if (checkbox) checkbox.checked = enabled;
+
+            async function requestWakeLock() {
+                try {
+                    wakeLockSentinel = await navigator.wakeLock.request("screen");
+                } catch (e) {
+                    // Silently ignore - device may have denied it (e.g. low battery)
+                }
+            }
+
+            function releaseWakeLock() {
+                if (wakeLockSentinel) {
+                    wakeLockSentinel.release();
+                    wakeLockSentinel = null;
+                }
+            }
+
+            if (enabled) requestWakeLock();
+
+            if (checkbox) {
+                checkbox.addEventListener("change", function () {
+                    var val = checkbox.checked;
+                    localStorage.setItem(key, String(val));
+                    if (val) {
+                        requestWakeLock();
+                    } else {
+                        releaseWakeLock();
+                    }
+                });
+            }
+
+            // Reacquire lock when switching back to this tab
+            document.addEventListener("visibilitychange", function () {
+                if (document.visibilityState === "visible" && localStorage.getItem(key) === "true") {
+                    requestWakeLock();
+                }
+            });
         })();
     </script>
     <script type="text/javascript">
